@@ -3,6 +3,7 @@
  * unbuffed sheet defense.
  *
  * @param {number} defense - The unbuffed defense value on the character sheet.
+ * @param {number} boost - The amount of defense +% stats provided by equipment.
  * @param {number} vitality - The vitality value of the character.
  * @param {number} strength - The strength value of the character.
  * @param {number} magic - The magic value of the character.
@@ -10,6 +11,7 @@
  * @returns {number} The calculated equipment defense value.
  */
 export function calcEquipmentDefense(defense: number,
+                                     boost: number,
                                      vitality: number,
                                      strength: number,
                                      magic: number,
@@ -24,6 +26,10 @@ export function calcEquipmentDefense(defense: number,
 
   let raw = defense;
 
+  if (boost > 0) {
+    raw = (1.0 / (1.0 + boost)) * defense;
+  }
+
   raw -= Math.round((vitality + stat - 2) / 4);
 
   if (type === 'physical') {
@@ -32,7 +38,7 @@ export function calcEquipmentDefense(defense: number,
 
   raw /= (1 + Math.round(((2 * vitality) + (3 * stat)) / 25) / 100);
 
-  return raw;
+  return Math.round(raw);
 }
 
 /**
@@ -64,21 +70,20 @@ export function calcEffectiveHealth(health: number,
                                     reduceDamage: number,
                                     defenseLevel: number,
                                     attackLevel: number): number {
-  let reduction = calcReduction(level, defense);
+  let reduction = calcReduction(defense, level);
+  let effectiveHealth = health;
 
   if (attackLevel > defenseLevel) {
-    let effectiveHealth = health;
     effectiveHealth /= (1 - reduction);
     effectiveHealth /= (1 - reduceDamage);
     effectiveHealth /= (1 + (attackLevel - defenseLevel) / 100);
-    return effectiveHealth;
   } else {
-    let effectiveHealth = health;
     effectiveHealth *= (1 + (1.2 * (defenseLevel - attackLevel) / 100));
     effectiveHealth /= (1 - reduction);
     effectiveHealth /= (1 - reduceDamage);
-    return effectiveHealth;
   }
+
+  return Math.floor(effectiveHealth);
 }
 
 /**
@@ -91,4 +96,40 @@ export function calcEffectiveHealth(health: number,
 export function calcHitRate(evasion: number, accuracy: number): number {
   let evadeRate = (evasion - 1) / ((2 * accuracy) + (evasion - 1));
   return 1 - evadeRate;
+}
+
+/**
+ * Calculates the buffed sheet defense value.
+ *
+ * @param {number} defense - The unbuffed defense value on the character sheet.
+ * @param {number} boost - The amount of defense +% stats provided by equipment.
+ * @param {number} vitality - The vitality value of the character.
+ * @param {number} strength - The strength value of the character.
+ * @param {number} magic - The magic value of the character.
+ * @param {'physical' | 'magical'} type - The type of damage.
+ * @param {number} buffs - The amount of +% buffs on the character.
+ */
+export function calcBuffedDefense(defense: number,
+                                  boost: number,
+                                  vitality: number,
+                                  strength: number,
+                                  magic: number,
+                                  type: 'physical' | 'magical',
+                                  buffs: number): number {
+  let equipmentDefense = calcEquipmentDefense(
+                          defense,
+                          boost,
+                          vitality,
+                          strength,
+                          magic,
+                          type
+                        );
+
+  let buffedEquipmentDefense = equipmentDefense * (1 + buffs);
+  let stat = type === 'physical' ? strength : magic;
+
+  return Math.round((vitality + stat - 2) / 4) +
+         Math.round(buffedEquipmentDefense *
+                   (1 + Math.round(((2 * vitality) + (3 * stat)) / 25) / 100)) +
+        (type === 'physical' ? 1 : 0);
 }
